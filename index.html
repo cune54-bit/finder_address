@@ -1,0 +1,2485 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>건축물대장 기반 지번주소 조회</title>
+  <meta
+    name="description"
+    content="시도, 시군구, 읍면동과 건축물 속성 정보를 바탕으로 건축물대장 후보를 필터링하고 지번주소를 지도에 표시하는 정적 웹페이지"
+  >
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  >
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap");
+
+    :root {
+      --bg: #f2ede3;
+      --bg-strong: #e5dccb;
+      --panel: rgba(255, 252, 246, 0.95);
+      --panel-alt: rgba(248, 243, 235, 0.9);
+      --ink: #241b10;
+      --muted: #6e6357;
+      --line: rgba(36, 27, 16, 0.12);
+      --line-strong: rgba(36, 27, 16, 0.24);
+      --accent: #c05d35;
+      --accent-strong: #913f1f;
+      --accent-soft: rgba(192, 93, 53, 0.12);
+      --success: #2f7d54;
+      --success-soft: rgba(47, 125, 84, 0.12);
+      --warning: #a06a11;
+      --warning-soft: rgba(160, 106, 17, 0.14);
+      --danger: #b23a2a;
+      --danger-soft: rgba(178, 58, 42, 0.12);
+      --shadow: 0 22px 64px rgba(56, 42, 20, 0.12);
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      font-family: "Noto Sans KR", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(255, 209, 153, 0.45), transparent 34%),
+        radial-gradient(circle at bottom left, rgba(172, 121, 74, 0.18), transparent 30%),
+        linear-gradient(145deg, #f7f0e2 0%, #efe6d6 46%, #e6ddcc 100%);
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 360px minmax(0, 1fr);
+      align-items: start;
+      min-height: 100vh;
+      gap: 0;
+    }
+
+    .sidebar {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-self: start;
+      min-height: 100vh;
+      padding: 20px 18px 18px;
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      border-right: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      overflow: visible;
+    }
+
+    .sidebar::after {
+      content: "";
+      position: absolute;
+      inset: 18px 14px 18px auto;
+      width: 1px;
+      background: linear-gradient(180deg, transparent, rgba(36, 27, 16, 0.18), transparent);
+      pointer-events: none;
+    }
+
+    .sidebar-title {
+      margin: 0;
+      font-family: "Space Grotesk", "Noto Sans KR", sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.04;
+      letter-spacing: -0.04em;
+    }
+
+    .form-card,
+    .status-card,
+    .results-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      border-radius: var(--radius-lg);
+      background: var(--panel-alt);
+      border: 1px solid rgba(36, 27, 16, 0.08);
+    }
+
+    .results-card {
+      flex: 0 0 auto;
+      min-height: 0;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .section-caption {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .field-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field--third {
+      grid-column: span 2;
+    }
+
+    .field--half {
+      grid-column: span 3;
+    }
+
+    .field--full {
+      grid-column: 1 / -1;
+    }
+
+    .field label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+
+    .field label span {
+      color: var(--accent-strong);
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      height: 38px;
+      padding: 0 12px;
+      border: 1px solid rgba(36, 27, 16, 0.14);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+    }
+
+    .field select {
+      appearance: none;
+      background-image:
+        linear-gradient(45deg, transparent 50%, rgba(36, 27, 16, 0.7) 50%),
+        linear-gradient(135deg, rgba(36, 27, 16, 0.7) 50%, transparent 50%);
+      background-position:
+        calc(100% - 18px) calc(50% - 2px),
+        calc(100% - 12px) calc(50% - 2px);
+      background-size: 6px 6px, 6px 6px;
+      background-repeat: no-repeat;
+      padding-right: 32px;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      outline: none;
+      border-color: rgba(192, 93, 53, 0.54);
+      box-shadow: 0 0 0 4px rgba(192, 93, 53, 0.14);
+      background: #fff;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .button {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: min(100%, 280px);
+      min-width: 220px;
+      height: 44px;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+      color: #fff9f2;
+      font: inherit;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      box-shadow: 0 14px 28px rgba(145, 63, 31, 0.22);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    }
+
+    .button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 18px 32px rgba(145, 63, 31, 0.28);
+    }
+
+    .button:disabled {
+      cursor: wait;
+      opacity: 0.72;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 249, 242, 0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    .button.is-loading .spinner {
+      display: inline-block;
+    }
+
+    .button.is-loading .button-label {
+      opacity: 0.92;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(36, 27, 16, 0.16);
+      flex: 0 0 auto;
+      box-shadow: inset 0 0 0 1px rgba(36, 27, 16, 0.08);
+    }
+
+    .status-card[data-tone="loading"] .status-dot {
+      background: var(--accent);
+      box-shadow: 0 0 0 6px rgba(192, 93, 53, 0.12);
+    }
+
+    .status-card[data-tone="success"] .status-dot {
+      background: var(--success);
+      box-shadow: 0 0 0 6px rgba(47, 125, 84, 0.12);
+    }
+
+    .status-card[data-tone="warning"] .status-dot {
+      background: var(--warning);
+      box-shadow: 0 0 0 6px rgba(160, 106, 17, 0.14);
+    }
+
+    .status-card[data-tone="error"] .status-dot {
+      background: var(--danger);
+      box-shadow: 0 0 0 6px rgba(178, 58, 42, 0.12);
+    }
+
+    .status-text {
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .status-meta {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .warning-list {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .warning-list.has-items {
+      display: flex;
+    }
+
+    .warning-item {
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(160, 106, 17, 0.16);
+      background: rgba(160, 106, 17, 0.08);
+      color: #7b5412;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .results-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .results-list {
+      display: flex;
+      flex: 0 0 auto;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 72px;
+      max-height: none;
+      overflow: visible;
+      padding-right: 0;
+    }
+
+    .empty-state {
+      display: grid;
+      place-items: center;
+      min-height: 72px;
+      padding: 14px;
+      border: 1px dashed rgba(36, 27, 16, 0.14);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.44);
+      color: var(--muted);
+      text-align: center;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .result-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid rgba(36, 27, 16, 0.1);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.78);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+    }
+
+    .result-card:hover {
+      transform: translateY(-1px);
+      border-color: rgba(192, 93, 53, 0.28);
+      box-shadow: 0 12px 22px rgba(56, 42, 20, 0.08);
+    }
+
+    .result-card.is-selected {
+      border-color: rgba(192, 93, 53, 0.46);
+      background: rgba(192, 93, 53, 0.08);
+      box-shadow: 0 16px 28px rgba(145, 63, 31, 0.12);
+    }
+
+    .result-card__head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .result-card__title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .result-card__badge {
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(36, 27, 16, 0.06);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .result-card__sub {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: rgba(36, 27, 16, 0.05);
+    }
+
+    .map-shell {
+      position: relative;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      min-width: 0;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    @supports (position: sticky) {
+      .map-shell {
+        position: sticky;
+      }
+    }
+
+    #map {
+      width: 100%;
+      height: 100vh;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.36), transparent 20%),
+        linear-gradient(180deg, rgba(208, 228, 241, 0.92) 0%, rgba(197, 220, 208, 0.92) 100%);
+    }
+
+    .leaflet-container {
+      width: 100%;
+      height: 100%;
+      font: inherit;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.36), transparent 20%),
+        linear-gradient(180deg, rgba(208, 228, 241, 0.92) 0%, rgba(197, 220, 208, 0.92) 100%);
+    }
+
+    .leaflet-control-zoom a {
+      background: rgba(255, 252, 246, 0.92);
+      color: var(--ink);
+      border-bottom-color: rgba(36, 27, 16, 0.1);
+    }
+
+    .leaflet-control-zoom a:hover {
+      background: #fff;
+      color: var(--accent-strong);
+    }
+
+    .leaflet-control-attribution {
+      background: rgba(255, 252, 246, 0.82) !important;
+      color: var(--muted) !important;
+      backdrop-filter: blur(10px);
+    }
+
+    .leaflet-control-attribution a {
+      color: var(--accent-strong) !important;
+    }
+
+    .leaflet-popup-content-wrapper {
+      background: rgba(255, 252, 246, 0.97);
+      color: var(--ink);
+      border-radius: 18px;
+      box-shadow: 0 18px 34px rgba(56, 42, 20, 0.18);
+    }
+
+    .leaflet-popup-content {
+      margin: 0;
+      min-width: 280px;
+    }
+
+    .leaflet-popup-tip {
+      background: rgba(255, 252, 246, 0.97);
+    }
+
+    .map-popup {
+      padding: 16px 18px 14px;
+    }
+
+    .map-popup__title {
+      margin: 0 0 10px;
+      font-size: 16px;
+      line-height: 1.4;
+      font-weight: 800;
+    }
+
+    .map-popup__details {
+      display: grid;
+      gap: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .map-popup__details strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .leaflet-result-marker {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #cb6740 0%, #a54a28 100%);
+      border: 3px solid #fff7ef;
+      box-shadow: 0 12px 20px rgba(145, 63, 31, 0.28);
+      position: relative;
+    }
+
+    .leaflet-result-marker::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      margin-left: -3px;
+      margin-top: -3px;
+      border-radius: 50%;
+      background: #fff7ef;
+    }
+
+    .map-header {
+      position: absolute;
+      top: 22px;
+      left: 22px;
+      right: 22px;
+      z-index: 4;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      pointer-events: none;
+    }
+
+    .map-badge,
+    .map-summary {
+      pointer-events: auto;
+      border: 1px solid rgba(255, 255, 255, 0.56);
+      background: rgba(23, 26, 31, 0.62);
+      color: #f7f4ef;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 42px rgba(17, 20, 24, 0.2);
+    }
+
+    .map-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .map-summary {
+      max-width: min(420px, 48vw);
+      padding: 14px 16px;
+      border-radius: 18px;
+    }
+
+    .map-summary h2 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.38;
+    }
+
+    .map-summary p {
+      margin: 0;
+      color: rgba(247, 244, 239, 0.76);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .map-fallback {
+      position: absolute;
+      inset: auto 22px 22px auto;
+      z-index: 4;
+      max-width: 360px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.56);
+      background: rgba(23, 26, 31, 0.76);
+      color: rgba(247, 244, 239, 0.9);
+      font-size: 13px;
+      line-height: 1.58;
+      backdrop-filter: blur(14px);
+      display: none;
+    }
+
+    .map-fallback.is-visible {
+      display: block;
+    }
+
+    .popup {
+      position: absolute;
+      min-width: 280px;
+      max-width: 320px;
+      background: rgba(255, 252, 246, 0.97);
+      border: 1px solid rgba(36, 27, 16, 0.14);
+      border-radius: 18px;
+      box-shadow: 0 18px 34px rgba(56, 42, 20, 0.18);
+      padding: 16px 18px 14px;
+    }
+
+    .popup::after,
+    .popup::before {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 42px;
+      border: solid transparent;
+      pointer-events: none;
+    }
+
+    .popup::after {
+      border-top-color: rgba(255, 252, 246, 0.97);
+      border-width: 10px;
+      margin-left: -10px;
+    }
+
+    .popup::before {
+      border-top-color: rgba(36, 27, 16, 0.14);
+      border-width: 11px;
+      margin-left: -11px;
+    }
+
+    .popup-close {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(36, 27, 16, 0.06);
+      color: var(--muted);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .popup-close:hover {
+      background: rgba(36, 27, 16, 0.12);
+    }
+
+    .popup-title {
+      margin: 0 34px 10px 0;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+
+    .popup-details {
+      display: grid;
+      gap: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .popup-details strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 1080px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        max-height: none;
+        min-height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .sidebar::after {
+        display: none;
+      }
+
+      .map-shell,
+      #map {
+        position: relative;
+        min-height: 58vh;
+        height: 58vh;
+      }
+
+      .results-list {
+        max-height: 28vh;
+      }
+
+      .map-summary {
+        max-width: min(100%, 480px);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .sidebar {
+        padding: 18px 16px 16px;
+      }
+
+      .field-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .field--third,
+      .field--half,
+      .field--full {
+        grid-column: auto;
+      }
+
+      .sidebar-title {
+        font-size: 24px;
+      }
+
+      .map-header {
+        top: 14px;
+        left: 14px;
+        right: 14px;
+        flex-direction: column;
+      }
+
+      .map-badge,
+      .map-summary,
+      .map-fallback {
+        max-width: none;
+      }
+    }
+
+    @media (max-height: 940px) and (min-width: 1081px) {
+      .sidebar {
+        gap: 10px;
+        padding: 14px 12px 12px;
+      }
+
+      .sidebar-title {
+        font-size: 22px;
+      }
+
+      .form-card,
+      .status-card,
+      .results-card {
+        gap: 8px;
+        padding: 10px;
+      }
+
+      .section-title h2 {
+        font-size: 14px;
+      }
+
+      .field-grid {
+        gap: 7px;
+      }
+
+      .field {
+        gap: 4px;
+      }
+
+      .field input,
+      .field select {
+        height: 34px;
+        font-size: 13px;
+      }
+
+      .button {
+        min-width: 200px;
+        height: 38px;
+      }
+
+      .status-text,
+      .results-summary,
+      .empty-state {
+        font-size: 12px;
+      }
+
+      .results-list,
+      .empty-state {
+        min-height: 64px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <h1 class="sidebar-title">지번주소 찾기</h1>
+
+      <section class="form-card">
+        <div class="section-title">
+          <h2>조회 조건</h2>
+          <span class="section-caption">주소 필수, 건물 정보는 선택 입력</span>
+        </div>
+
+        <form id="searchForm" novalidate>
+          <div class="field-grid">
+            <div class="field field--third">
+              <label for="sido">시도 <span>*</span></label>
+              <select id="sido" name="sido" data-default="경기도">
+                <option value="">시도 선택</option>
+              </select>
+            </div>
+            <div class="field field--third">
+              <label for="sigungu">시군구 <span>*</span></label>
+              <select id="sigungu" name="sigungu" data-default="성남시 중원구" disabled>
+                <option value="">시군구 선택</option>
+              </select>
+            </div>
+            <div class="field field--third">
+              <label for="legalDong">읍면동 <span>*</span></label>
+              <select id="legalDong" name="legalDong" data-default="성남동" disabled>
+                <option value="">읍면동 선택</option>
+              </select>
+            </div>
+            <div class="field field--third">
+              <label for="landArea">대지면적(㎡)</label>
+              <input id="landArea" name="landArea" type="number" step="0.01" inputmode="decimal" placeholder="예: 123.45" value="278">
+            </div>
+            <div class="field field--third">
+              <label for="totalArea">연면적(㎡)</label>
+              <input id="totalArea" name="totalArea" type="number" step="0.01" inputmode="decimal" placeholder="예: 456.78" value="521.12">
+            </div>
+            <div class="field field--third">
+              <label for="buildingArea">건축면적(㎡)</label>
+              <input id="buildingArea" name="buildingArea" type="number" step="0.01" inputmode="decimal" placeholder="예: 98.76" value="162.9">
+            </div>
+            <div class="field field--half">
+              <label for="approvalDate">준공일</label>
+              <input id="approvalDate" name="approvalDate" type="date" value="2017-12-06">
+            </div>
+            <div class="field field--half">
+              <label for="mainPurpose">건축물용도</label>
+              <select id="mainPurpose" name="mainPurpose">
+                <option value="">선택 안 함</option>
+                <option value="단독주택" selected>단독주택</option>
+                <option value="공동주택">공동주택</option>
+                <option value="근린생활시설">근린생활시설</option>
+                <option value="업무시설">업무시설</option>
+                <option value="교육연구시설">교육연구시설</option>
+                <option value="종교시설">종교시설</option>
+                <option value="판매시설">판매시설</option>
+                <option value="숙박시설">숙박시설</option>
+                <option value="의료시설">의료시설</option>
+                <option value="노유자시설">노유자시설</option>
+                <option value="운동시설">체육시설</option>
+                <option value="공장">공장</option>
+                <option value="창고시설">창고시설</option>
+                <option value="자동차관련시설">자동차관련시설</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="submitButton" class="button" type="submit">
+              <span class="spinner" aria-hidden="true"></span>
+              <span class="button-label">조회 시작</span>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section id="statusCard" class="status-card" data-tone="idle">
+        <div class="section-title">
+          <h2>진행 상태</h2>
+          <span id="statusMeta" class="status-meta">대기 중</span>
+        </div>
+        <div class="status-row">
+          <div class="status-dot" aria-hidden="true"></div>
+          <div id="statusText" class="status-text">
+            조회 버튼을 누르면 주소를 기준으로 법정동 코드를 찾고 건축물대장 조회를 진행합니다.
+          </div>
+        </div>
+        <ul id="warningList" class="warning-list" aria-live="polite"></ul>
+      </section>
+
+      <section class="results-card">
+        <div class="section-title">
+          <h2>결과 목록</h2>
+          <span id="resultsCount" class="section-caption">후보 없음</span>
+        </div>
+        <div id="resultsSummary" class="results-summary">
+          <span>단일 결과는 자동으로 지도에 표시됩니다.</span>
+        </div>
+        <div id="resultsList" class="results-list">
+          <div class="empty-state">
+            조회 전입니다.<br>
+            조건을 입력하면 후보 카드가 여기에 표시됩니다.
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <main class="map-shell">
+      <div class="map-header">
+        <div class="map-badge">Leaflet + VWorld</div>
+        <div id="mapSummary" class="map-summary">
+          <h2>지도 준비 중</h2>
+          <p>후보를 선택하면 지번주소 좌표를 조회해 마커와 정보창을 띄웁니다.</p>
+        </div>
+      </div>
+
+      <div id="map" aria-label="지번주소 결과 지도"></div>
+      <div id="mapFallback" class="map-fallback"></div>
+
+      <div id="popup" class="popup" hidden>
+        <button id="popupClose" class="popup-close" type="button" aria-label="정보창 닫기">×</button>
+        <div id="popupContent"></div>
+      </div>
+    </main>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="./legal-regions.js"></script>
+  <script>
+    const API_KEY_PUBLIC = "262UaaKgpdsminV6qlnLGdOq7KpFfEfTPk9jPZwt422PFHtMoAKfWyF3k3DFQWNUpVmdLpZw4ESve6h7hkw4uA==";
+    const API_KEY_VWORLD = "4E0AD412-BC5D-3976-8220-FD7C550431CE";
+    const PAGE_SIZE = 100;
+    const KOREA_CENTER = [127.5, 36.5];
+
+    const STAN_REGION_ENDPOINT = "https://apis.data.go.kr/1741000/StanReginCd/getStanReginCdList";
+    const BUILDING_SERVICE_ENDPOINT = "https://apis.data.go.kr/1613000/BldRgstHubService";
+    const BUILDING_ENDPOINTS = [
+      { path: "getBrTitleInfo", label: "일반" },
+      { path: "getBrRecapTitleInfo", label: "총괄" }
+    ];
+    const VWORLD_ADDRESS_ENDPOINT = "https://api.vworld.kr/req/address";
+
+    const SIDO_MAP = {
+      "서울": "서울특별시",
+      "부산": "부산광역시",
+      "대구": "대구광역시",
+      "인천": "인천광역시",
+      "광주": "광주광역시",
+      "대전": "대전광역시",
+      "울산": "울산광역시",
+      "세종": "세종특별자치시",
+      "경기": "경기도",
+      "강원": "강원특별자치도",
+      "충북": "충청북도",
+      "충남": "충청남도",
+      "전북": "전북특별자치도",
+      "전남": "전라남도",
+      "경북": "경상북도",
+      "경남": "경상남도",
+      "제주": "제주특별자치도"
+    };
+
+    class UserVisibleError extends Error {
+      constructor(message, options = {}) {
+        super(message);
+        this.name = "UserVisibleError";
+        this.tone = options.tone || "error";
+      }
+    }
+
+    const state = {
+      isSearching: false,
+      results: [],
+      selectedResultId: null,
+      map: null,
+      baseLayer: null,
+      marker: null
+    };
+
+    const elements = {
+      form: document.getElementById("searchForm"),
+      sido: document.getElementById("sido"),
+      sigungu: document.getElementById("sigungu"),
+      legalDong: document.getElementById("legalDong"),
+      submitButton: document.getElementById("submitButton"),
+      buttonLabel: document.querySelector(".button-label"),
+      statusCard: document.getElementById("statusCard"),
+      statusText: document.getElementById("statusText"),
+      statusMeta: document.getElementById("statusMeta"),
+      warningList: document.getElementById("warningList"),
+      resultsCount: document.getElementById("resultsCount"),
+      resultsSummary: document.getElementById("resultsSummary"),
+      resultsList: document.getElementById("resultsList"),
+      mapSummary: document.getElementById("mapSummary"),
+      mapFallback: document.getElementById("mapFallback"),
+      popup: document.getElementById("popup"),
+      popupContent: document.getElementById("popupContent"),
+      popupClose: document.getElementById("popupClose")
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      initRegionSelects();
+      bindEvents();
+      initMap();
+    });
+
+    function bindEvents() {
+      elements.form.addEventListener("submit", handleSearch);
+      elements.sido?.addEventListener("change", () => {
+        handleSidoChange();
+      });
+      elements.sigungu?.addEventListener("change", () => {
+        handleSigunguChange();
+      });
+      elements.popupClose.addEventListener("click", () => {
+        closePopup();
+      });
+    }
+
+    function initRegionSelects() {
+      if (!elements.sido || !elements.sigungu || !elements.legalDong) {
+        return;
+      }
+
+      const legalSidos = getLegalRegionSidos();
+      if (!legalSidos.length) {
+        setSelectOptions(elements.sido, [], { placeholder: "지역 데이터 로드 실패", disabled: true });
+        setSelectOptions(elements.sigungu, [], { placeholder: "시군구 선택", disabled: true });
+        setSelectOptions(elements.legalDong, [], { placeholder: "읍면동 선택", disabled: true });
+        console.error("LEGAL_REGION_OPTIONS is unavailable.");
+        return;
+      }
+
+      const defaultSido = normalizeSido(elements.sido.dataset.default || "경기도");
+      const defaultSigungu = normalizeWhitespace(elements.sigungu.dataset.default || "성남시 중원구");
+      const defaultLegalDong = normalizeWhitespace(elements.legalDong.dataset.default || "성남동");
+
+      populateSidoOptions(defaultSido);
+      populateSigunguOptions(defaultSido, defaultSigungu);
+      populateLegalDongOptions(defaultSido, defaultSigungu, defaultLegalDong);
+    }
+
+    function getLegalRegionSidos() {
+      return Array.isArray(window.LEGAL_REGION_OPTIONS?.sidos) ? window.LEGAL_REGION_OPTIONS.sidos : [];
+    }
+
+    function populateSidoOptions(selectedValue = "") {
+      const options = getLegalRegionSidos().map((item) => item.name);
+      setSelectOptions(elements.sido, options, {
+        placeholder: "시도 선택",
+        selectedValue: normalizeSido(selectedValue)
+      });
+    }
+
+    function populateSigunguOptions(sidoValue, selectedValue = "") {
+      const normalizedSido = normalizeSido(sidoValue);
+      const sido = getLegalRegionSidos().find((item) => item.name === normalizedSido);
+      const options = Array.isArray(sido?.sigungus) ? sido.sigungus.map((item) => item.name) : [];
+      setSelectOptions(elements.sigungu, options, {
+        placeholder: "시군구 선택",
+        selectedValue: normalizeWhitespace(selectedValue),
+        disabled: !normalizedSido
+      });
+    }
+
+    function populateLegalDongOptions(sidoValue, sigunguValue, selectedValue = "") {
+      const normalizedSido = normalizeSido(sidoValue);
+      const normalizedSigungu = normalizeWhitespace(sigunguValue);
+      const sido = getLegalRegionSidos().find((item) => item.name === normalizedSido);
+      const sigungu = Array.isArray(sido?.sigungus)
+        ? sido.sigungus.find((item) => item.name === normalizedSigungu)
+        : null;
+      const options = Array.isArray(sigungu?.legalDongs) ? sigungu.legalDongs.map((item) => item.name) : [];
+      setSelectOptions(elements.legalDong, options, {
+        placeholder: "읍면동 선택",
+        selectedValue: normalizeWhitespace(selectedValue),
+        disabled: !normalizedSido || !normalizedSigungu
+      });
+    }
+
+    function handleSidoChange() {
+      populateSigunguOptions(elements.sido.value, "");
+      populateLegalDongOptions(elements.sido.value, "", "");
+    }
+
+    function handleSigunguChange() {
+      populateLegalDongOptions(elements.sido.value, elements.sigungu.value, "");
+    }
+
+    function setSelectOptions(selectElement, options, config = {}) {
+      if (!selectElement) {
+        return;
+      }
+
+      const {
+        placeholder = "선택",
+        selectedValue = "",
+        disabled = false
+      } = config;
+
+      const normalizedSelectedValue = normalizeWhitespace(selectedValue);
+      selectElement.innerHTML = "";
+
+      const placeholderOption = document.createElement("option");
+      placeholderOption.value = "";
+      placeholderOption.textContent = placeholder;
+      selectElement.appendChild(placeholderOption);
+
+      options.forEach((optionValue) => {
+        const option = document.createElement("option");
+        option.value = optionValue;
+        option.textContent = optionValue;
+        selectElement.appendChild(option);
+      });
+
+      if (normalizedSelectedValue && options.includes(normalizedSelectedValue)) {
+        selectElement.value = normalizedSelectedValue;
+      } else {
+        selectElement.value = "";
+      }
+
+      selectElement.disabled = disabled || !options.length;
+    }
+
+    function initMap() {
+      if (!window.L) {
+        showMapFallback(
+          "Leaflet 스크립트를 불러오지 못했습니다. 네트워크 연결 상태와 CDN 차단 여부를 확인하세요."
+        );
+        return;
+      }
+
+      try {
+        state.map = L.map("map", {
+          zoomControl: true,
+          attributionControl: true,
+          preferCanvas: true
+        });
+        state.map.setView([KOREA_CENTER[1], KOREA_CENTER[0]], 7);
+
+        state.baseLayer = L.tileLayer(
+          `https://api.vworld.kr/req/wmts/1.0.0/${API_KEY_VWORLD}/Base/{z}/{y}/{x}.png`,
+          {
+            maxZoom: 22,
+            maxNativeZoom: 19,
+            attribution: '© <a href="https://www.vworld.kr" target="_blank" rel="noreferrer">VWorld</a>'
+          }
+        );
+        state.baseLayer.addTo(state.map);
+
+        state.map.on("click", () => {
+          closePopup();
+        });
+
+        setMapSummary(
+          "지도 준비 완료",
+          "Leaflet과 VWorld 배경지도로 시작합니다. 후보를 선택하면 지번주소 기준 좌표로 이동합니다."
+        );
+      } catch (error) {
+        console.error(error);
+        showMapFallback(
+          "지도를 초기화하지 못했습니다. Leaflet 로딩 상태와 VWorld 타일 키를 확인하세요."
+        );
+      }
+    }
+
+    async function handleSearch(event) {
+      event.preventDefault();
+      if (state.isSearching) {
+        return;
+      }
+
+      clearWarnings();
+      closePopup();
+      clearMarker();
+
+      try {
+        const input = readFormValues();
+        validateInput(input);
+
+        state.isSearching = true;
+        setButtonLoading(true);
+        state.results = [];
+        state.selectedResultId = null;
+        renderResults([]);
+        updateStatus(
+          "법정동 코드 조회 중입니다.",
+          "loading",
+          "Step 1 / 4"
+        );
+        setMapSummary(
+          "조회 준비 중",
+          "법정동 코드 조회와 건축물대장 페이지 수 확인을 먼저 진행합니다."
+        );
+
+        const legalRegion = await lookupLegalRegion(input);
+        updateStatus(
+          `${getRegionSourceLabel(legalRegion.source)} 확인 완료: ${legalRegion.sigunguCd}-${legalRegion.bjdongCd}`,
+          "loading",
+          "Step 2 / 4"
+        );
+
+        const pageResult = await fetchBuildingCandidates(legalRegion);
+        updateStatus(
+          `총 ${pageResult.rawItems.length}건을 불러왔습니다. 조건 필터링을 진행합니다.`,
+          "loading",
+          "Step 3 / 4"
+        );
+
+        const filtered = filterCandidates(pageResult.rawItems, input);
+        state.results = filtered;
+        renderResults(filtered);
+
+        if (!filtered.length) {
+          updateStatus("조건에 맞는 건축물 후보가 없습니다.", "warning", "완료");
+          setMapSummary(
+            "후보 없음",
+            "입력한 오차 허용 범위 안에서 일치하는 건축물대장 항목이 없었습니다. 조건을 조금 넓혀 다시 시도하세요."
+          );
+          return;
+        }
+
+        updateStatus(
+          `${filtered.length}건의 후보를 찾았습니다.${filtered.length === 1 ? " 자동으로 지도에 표시합니다." : " 목록에서 선택해 지도에 표시하세요."}`,
+          filtered.length === 1 ? "success" : "warning",
+          "Step 4 / 4"
+        );
+
+        if (filtered.length === 1) {
+          await selectResult(filtered[0].id, { silentStatus: true });
+          updateStatus("단일 후보를 지도에 표시했습니다.", "success", "완료");
+        } else {
+          setMapSummary(
+            `${filtered.length}개 후보 대기 중`,
+            "결과 목록 카드를 클릭하면 좌표를 조회하고 지도 마커와 정보창을 엽니다."
+          );
+        }
+      } catch (error) {
+        console.error(error);
+        handleSearchError(error);
+      } finally {
+        state.isSearching = false;
+        setButtonLoading(false);
+      }
+    }
+
+    function readFormValues() {
+      const formData = new FormData(elements.form);
+      return {
+        sido: normalizeWhitespace(formData.get("sido")),
+        sigungu: normalizeWhitespace(formData.get("sigungu")),
+        legalDong: normalizeWhitespace(formData.get("legalDong")),
+        landArea: parseOptionalNumber(formData.get("landArea")),
+        totalArea: parseOptionalNumber(formData.get("totalArea")),
+        buildingArea: parseOptionalNumber(formData.get("buildingArea")),
+        approvalDate: normalizeDateValue(formData.get("approvalDate")),
+        mainPurpose: normalizeWhitespace(formData.get("mainPurpose"))
+      };
+    }
+
+    function validateInput(input) {
+      if (!input.sido || !input.sigungu || !input.legalDong) {
+        throw new UserVisibleError("시도, 시군구, 읍면동은 모두 입력해야 합니다.", { tone: "error" });
+      }
+    }
+
+    async function lookupLegalRegion(input) {
+      const localRegion = lookupLegalRegionFromLocalData(input);
+      if (localRegion) {
+        return localRegion;
+      }
+
+      const normalizedSido = normalizeSido(input.sido);
+      const locataddNm = [normalizedSido, input.sigungu, input.legalDong].filter(Boolean).join(" ");
+      const params = new URLSearchParams({
+        serviceKey: API_KEY_PUBLIC,
+        locatadd_nm: locataddNm,
+        numOfRows: "10",
+        pageNo: "1",
+        type: "json"
+      });
+
+      let lastError = null;
+
+      try {
+        const payload = await requestJson(STAN_REGION_ENDPOINT, params);
+        const items = extractItems(payload);
+        if (items.length) {
+          const matched = pickBestRegion(items, locataddNm);
+          const regionCode = String(matched.region_cd || matched.regionCd || "").replace(/\D/g, "");
+          return createRegionResult(regionCode, "stan", matched);
+        }
+      } catch (error) {
+        lastError = error;
+      }
+
+      const fallbackRegion = await lookupLegalRegionViaVworld(locataddNm);
+      if (fallbackRegion) {
+        addWarning("행안부 법정동코드 API 대신 VWorld 주소 구조정보로 코드를 추정했습니다.");
+        return fallbackRegion;
+      }
+
+      if (lastError && isRegionLookupServiceFailure(lastError)) {
+        throw new UserVisibleError(
+          "법정동 코드 자동 조회에 실패했습니다. 주소 조건을 다시 확인하거나 잠시 후 다시 시도해 주세요.",
+          { tone: "error" }
+        );
+      }
+
+      throw new UserVisibleError("주소를 확인해주세요. 법정동 코드 조회 결과가 없습니다.", {
+        tone: "error"
+      });
+    }
+
+    async function lookupLegalRegionViaVworld(addressInput) {
+      const addressCandidates = buildAddressCandidates(addressInput);
+      if (!addressCandidates.length) {
+        return null;
+      }
+
+      for (const address of addressCandidates) {
+        try {
+          const payload = await requestJsonp(VWORLD_ADDRESS_ENDPOINT, {
+            service: "address",
+            request: "getcoord",
+            version: "2.0",
+            crs: "epsg:4326",
+            address,
+            refine: "true",
+            simple: "false",
+            format: "json",
+            errorFormat: "json",
+            type: "PARCEL",
+            key: API_KEY_VWORLD
+          });
+          const structure = payload?.response?.refined?.structure;
+          const legalCode = digitsOnly(structure?.level4LC || "");
+          if (legalCode.length >= 10) {
+            return createRegionResult(legalCode, "vworld", {
+              address,
+              payload
+            });
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      return null;
+    }
+
+    async function fetchBuildingCandidates(region) {
+      const mergedItems = new Map();
+      let totalCount = 0;
+      let totalPages = 0;
+      let successfulEndpoints = 0;
+      let lastError = null;
+
+      for (const endpoint of BUILDING_ENDPOINTS) {
+        let endpointTotalPages = 1;
+
+        try {
+          const firstPage = await fetchBuildingPage(endpoint.path, region.sigunguCd, region.bjdongCd, 1);
+          const firstItems = extractItems(firstPage);
+          const endpointTotalCount = extractTotalCount(firstPage);
+          endpointTotalPages = Math.max(1, Math.ceil(endpointTotalCount / PAGE_SIZE));
+
+          mergeBuildingItems(mergedItems, firstItems, endpoint.path);
+          totalCount += endpointTotalCount;
+          totalPages += endpointTotalPages;
+          successfulEndpoints += 1;
+
+          for (let page = 2; page <= endpointTotalPages; page += 1) {
+            updateStatus(
+              `${endpoint.label} ${page} / ${endpointTotalPages} 페이지를 조회 중입니다.`,
+              "loading",
+              `${endpoint.label} 페이지 수집 ${page}/${endpointTotalPages}`
+            );
+
+            try {
+              const payload = await fetchBuildingPage(endpoint.path, region.sigunguCd, region.bjdongCd, page);
+              mergeBuildingItems(mergedItems, extractItems(payload), endpoint.path);
+            } catch (error) {
+              console.error(error);
+              addWarning(`${endpoint.label} ${page}페이지 조회에 실패하여 건너뛰었습니다.`);
+            }
+          }
+        } catch (error) {
+          console.error(error);
+          lastError = error;
+          addWarning(`건축물대장 ${endpoint.label} 조회에 실패하여 다른 소스로 계속 시도합니다.`);
+        }
+      }
+
+      if (!successfulEndpoints) {
+        throw lastError || new UserVisibleError("건축물대장 조회에 실패했습니다.", { tone: "error" });
+      }
+
+      return {
+        rawItems: Array.from(mergedItems.values()),
+        totalCount,
+        totalPages
+      };
+    }
+
+    function fetchBuildingPage(endpointPath, sigunguCd, bjdongCd, pageNo) {
+      const params = new URLSearchParams({
+        serviceKey: API_KEY_PUBLIC,
+        sigunguCd,
+        bjdongCd,
+        numOfRows: String(PAGE_SIZE),
+        pageNo: String(pageNo),
+        _type: "json"
+      });
+
+      return requestJson(`${BUILDING_SERVICE_ENDPOINT}/${endpointPath}`, params);
+    }
+
+    function filterCandidates(items, input) {
+      const normalizedPurpose = input.mainPurpose.toLowerCase();
+      return items
+        .map((item, index) => mapCandidate(item, index))
+        .filter((candidate) => {
+          if (Number.isFinite(input.landArea)) {
+            if (!Number.isFinite(candidate.landArea)) {
+              return false;
+            }
+
+            if (Math.abs(input.landArea - candidate.landArea) > 1) {
+              return false;
+            }
+          }
+
+          if (Number.isFinite(input.totalArea) && !nearlyEqual(input.totalArea, candidate.totalArea, 0.01)) {
+            return false;
+          }
+
+          if (Number.isFinite(input.buildingArea) && !nearlyEqual(input.buildingArea, candidate.buildingArea, 0.01)) {
+            return false;
+          }
+
+          if (input.approvalDate && candidate.approvalDate !== input.approvalDate) {
+            return false;
+          }
+
+          if (normalizedPurpose && !candidate.mainPurpose.toLowerCase().includes(normalizedPurpose)) {
+            return false;
+          }
+
+          return true;
+        });
+    }
+
+    function mapCandidate(item, index) {
+      return {
+        id: String(item.mgmBldrgstPk || item.rnum || `${item.platPlc || "unknown"}-${index}`),
+        address: normalizeWhitespace(item.platPlc || item.newPlatPlc || ""),
+        landArea: parseOptionalNumber(item.platArea),
+        totalArea: parseOptionalNumber(item.totArea),
+        buildingArea: parseOptionalNumber(item.archArea),
+        approvalDate: digitsOnly(item.useAprDay),
+        approvalDateLabel: formatDateLabel(item.useAprDay),
+        mainPurpose: normalizeWhitespace(item.mainPurpsCdNm || item.etcPurps || ""),
+        buildingName: normalizeWhitespace(item.bldNm || ""),
+        raw: item,
+        point: null,
+        pointType: null
+      };
+    }
+
+    function renderResults(results) {
+      elements.resultsList.innerHTML = "";
+      state.selectedResultId = null;
+
+      if (!results.length) {
+        elements.resultsCount.textContent = "후보 없음";
+        elements.resultsSummary.innerHTML = "<span>필터 조건에 맞는 결과가 여기에 표시됩니다.</span>";
+        elements.resultsList.innerHTML = `
+          <div class="empty-state">
+            조건에 맞는 후보가 아직 없습니다.<br>
+            조회 후 여러 후보가 나오면 여기서 선택할 수 있습니다.
+          </div>
+        `;
+        return;
+      }
+
+      elements.resultsCount.textContent = `${results.length}건`;
+      elements.resultsSummary.innerHTML = `
+        <span>${results.length === 1 ? "단일 후보" : "복수 후보"}가 필터링되었습니다.</span>
+      `;
+
+      const fragment = document.createDocumentFragment();
+      results.forEach((result, index) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "result-card";
+        card.dataset.resultId = result.id;
+        card.innerHTML = `
+          <div class="result-card__head">
+            <h3 class="result-card__title">${escapeHtml(result.address || "주소 없음")}</h3>
+            <span class="result-card__badge">후보 ${index + 1}</span>
+          </div>
+          <div class="result-card__sub">
+            ${result.mainPurpose ? `<span class="chip">주용도 ${escapeHtml(result.mainPurpose)}</span>` : ""}
+            ${result.buildingName ? `<span class="chip">건물명 ${escapeHtml(result.buildingName)}</span>` : ""}
+            ${Number.isFinite(result.landArea) ? `<span class="chip">대지 ${formatArea(result.landArea)}㎡</span>` : ""}
+            ${Number.isFinite(result.totalArea) ? `<span class="chip">연면적 ${formatArea(result.totalArea)}㎡</span>` : ""}
+            ${Number.isFinite(result.buildingArea) ? `<span class="chip">건축 ${formatArea(result.buildingArea)}㎡</span>` : ""}
+            ${result.approvalDateLabel ? `<span class="chip">준공 ${escapeHtml(result.approvalDateLabel)}</span>` : ""}
+          </div>
+        `;
+
+        card.addEventListener("click", () => {
+          selectResult(result.id).catch((error) => {
+            console.error(error);
+            handleSearchError(error);
+          });
+        });
+
+        fragment.appendChild(card);
+      });
+
+      elements.resultsList.appendChild(fragment);
+    }
+
+    async function selectResult(resultId, options = {}) {
+      const matched = state.results.find((item) => item.id === resultId);
+      if (!matched) {
+        return;
+      }
+
+      setSelectedResult(resultId);
+
+      if (!options.silentStatus) {
+        updateStatus("선택한 후보의 좌표를 조회 중입니다.", "loading", "지도 표시");
+      }
+
+      if (!matched.point) {
+        matched.point = await geocodeAddress([
+          matched.address,
+          normalizeParcelAddress(matched.address),
+          matched.raw?.newPlatPlc
+        ]);
+      }
+
+      if (!matched.point) {
+        clearMarker();
+        setMapSummary(
+          "좌표 변환 실패",
+          "지번주소 텍스트는 확인되었지만 VWorld 좌표 변환에 실패했습니다. 결과 카드의 상세 정보만 유지합니다."
+        );
+
+        if (!options.silentStatus) {
+          updateStatus("좌표 변환에 실패하여 지도 마커 없이 결과만 유지합니다.", "warning", "완료");
+        }
+        return;
+      }
+
+      placeMarker(matched);
+      openPopup(matched);
+      setMapSummary(
+        matched.address,
+        matched.mainPurpose || matched.buildingName
+          ? `${matched.mainPurpose || "주용도 미상"}${matched.buildingName ? ` · ${matched.buildingName}` : ""}`
+          : "선택한 후보를 지도에 표시했습니다."
+      );
+
+      if (!options.silentStatus) {
+        updateStatus("선택한 후보를 지도에 표시했습니다.", "success", "완료");
+      }
+    }
+
+    function setSelectedResult(resultId) {
+      state.selectedResultId = resultId;
+      elements.resultsList.querySelectorAll(".result-card").forEach((card) => {
+        card.classList.toggle("is-selected", card.dataset.resultId === resultId);
+      });
+    }
+
+    async function geocodeAddress(addressInput) {
+      const addressCandidates = buildAddressCandidates(addressInput);
+      if (!addressCandidates.length) {
+        return null;
+      }
+
+      for (const address of addressCandidates) {
+        for (const type of ["parcel", "road"]) {
+          try {
+            const payload = await requestJsonp(VWORLD_ADDRESS_ENDPOINT, {
+              service: "address",
+              request: "getcoord",
+              version: "2.0",
+              crs: "epsg:4326",
+              address,
+              refine: "true",
+              simple: "false",
+              format: "json",
+              errorFormat: "json",
+              type,
+              key: API_KEY_VWORLD
+            });
+            const point = extractVworldPoint(payload);
+            if (point) {
+              point.type = type;
+              point.address = address;
+              return point;
+            }
+          } catch (error) {
+            console.error(error);
+          }
+        }
+      }
+
+      addWarning("지번주소 좌표 변환에 실패했습니다. 마커 없이 텍스트 결과만 유지합니다.");
+      return null;
+    }
+
+    function placeMarker(result) {
+      if (!state.map || !result.point) {
+        return;
+      }
+
+      clearMarker();
+
+      state.marker = L.marker([result.point.y, result.point.x], {
+        icon: createLeafletMarkerIcon()
+      }).addTo(state.map);
+      state.marker.on("click", () => {
+        setSelectedResult(result.id);
+        openPopup(result);
+      });
+
+      state.map.setView([result.point.y, result.point.x], 17);
+    }
+
+    function clearMarker() {
+      if (state.marker) {
+        state.map.removeLayer(state.marker);
+        state.marker = null;
+      }
+    }
+
+    function openPopup(result) {
+      if (!state.map || !state.marker || !result.point) {
+        return;
+      }
+
+      state.marker.bindPopup(buildPopupHtml(result), {
+        maxWidth: 320,
+        closeButton: true,
+        autoPan: true,
+        className: "land-result-popup"
+      }).openPopup();
+    }
+
+    function closePopup() {
+      if (state.marker) {
+        state.marker.closePopup();
+      }
+      elements.popup.hidden = true;
+    }
+
+    function createLeafletMarkerIcon() {
+      return L.divIcon({
+        className: "",
+        html: '<div class="leaflet-result-marker" aria-hidden="true"></div>',
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+        popupAnchor: [0, -10]
+      });
+    }
+
+    function buildPopupHtml(result) {
+      return `
+        <div class="map-popup">
+          <h3 class="map-popup__title">${escapeHtml(result.address || "지번주소 없음")}</h3>
+          <div class="map-popup__details">
+            ${Number.isFinite(result.landArea) ? `<div><strong>대지면적</strong> ${formatArea(result.landArea)}㎡</div>` : ""}
+            ${Number.isFinite(result.totalArea) ? `<div><strong>연면적</strong> ${formatArea(result.totalArea)}㎡</div>` : ""}
+            ${Number.isFinite(result.buildingArea) ? `<div><strong>건축면적</strong> ${formatArea(result.buildingArea)}㎡</div>` : ""}
+            ${result.approvalDateLabel ? `<div><strong>준공일</strong> ${escapeHtml(result.approvalDateLabel)}</div>` : ""}
+            ${result.mainPurpose ? `<div><strong>주용도명</strong> ${escapeHtml(result.mainPurpose)}</div>` : ""}
+            ${result.buildingName ? `<div><strong>건물명</strong> ${escapeHtml(result.buildingName)}</div>` : ""}
+          </div>
+        </div>
+      `;
+    }
+
+    function setButtonLoading(loading) {
+      elements.submitButton.disabled = loading;
+      elements.submitButton.classList.toggle("is-loading", loading);
+      elements.buttonLabel.textContent = loading ? "조회 중..." : "조회 시작";
+    }
+
+    function updateStatus(message, tone = "idle", meta = "대기 중") {
+      elements.statusCard.dataset.tone = tone;
+      elements.statusText.textContent = message;
+      elements.statusMeta.textContent = meta;
+    }
+
+    function addWarning(message) {
+      const item = document.createElement("li");
+      item.className = "warning-item";
+      item.textContent = message;
+      elements.warningList.appendChild(item);
+      elements.warningList.classList.add("has-items");
+    }
+
+    function clearWarnings() {
+      elements.warningList.innerHTML = "";
+      elements.warningList.classList.remove("has-items");
+    }
+
+    function handleSearchError(error) {
+      if (error instanceof UserVisibleError) {
+        if (typeof error.message === "string" && /ERROR-5|서비스 연결실패|법정동 코드 자동 조회/i.test(error.message)) {
+          addWarning("법정동코드 API 응답이 불안정해 자동 코드 조회에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+        updateStatus(error.message, error.tone || "error", "중단");
+        return;
+      }
+
+      const looksLikeCors =
+        error instanceof TypeError ||
+        (typeof error.message === "string" && /cors|failed to fetch|network/i.test(error.message));
+
+      if (looksLikeCors) {
+        updateStatus(
+          "브라우저 CORS 정책으로 직접 조회가 차단되었을 수 있습니다. GitHub Pages 또는 프록시/서버 환경에서 다시 확인하세요.",
+          "error",
+          "중단"
+        );
+        addWarning("정적 페이지 환경에서는 공공데이터 API가 브라우저에서 직접 차단될 수 있습니다.");
+        return;
+      }
+
+      updateStatus(`조회 중 오류가 발생했습니다: ${error.message || "알 수 없는 오류"}`, "error", "중단");
+    }
+
+    function setMapSummary(title, description) {
+      elements.mapSummary.innerHTML = `
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(description)}</p>
+      `;
+    }
+
+    function showMapFallback(message) {
+      elements.mapFallback.textContent = message;
+      elements.mapFallback.classList.add("is-visible");
+      setMapSummary("지도 연결 필요", message);
+    }
+
+    async function requestJson(url, params, options = {}) {
+      const target = `${url}?${params.toString()}`;
+      const response = await fetch(target, {
+        method: "GET"
+      });
+
+      if (!response.ok) {
+        throw new UserVisibleError(`API 오류 [${response.status}]`, { tone: "error" });
+      }
+
+      let payload;
+      try {
+        payload = await response.json();
+      } catch (error) {
+        throw new UserVisibleError("JSON 응답을 해석하지 못했습니다.", { tone: "error" });
+      }
+
+      if (!options.allowLooseSuccess) {
+        const resultCode = payload?.response?.header?.resultCode;
+        const legacyResultCode = payload?.RESULT?.resultCode;
+        if (resultCode && resultCode !== "00" && resultCode !== "INFO-000") {
+          const resultMsg = payload?.response?.header?.resultMsg || "API 응답 오류";
+          throw new UserVisibleError(`${resultMsg} (${resultCode})`, { tone: "error" });
+        }
+        if (legacyResultCode && legacyResultCode !== "00" && legacyResultCode !== "INFO-0") {
+          const legacyResultMsg = payload?.RESULT?.resultMsg || "API 응답 오류";
+          throw new UserVisibleError(`${legacyResultMsg} (${legacyResultCode})`, { tone: "error" });
+        }
+      }
+
+      return payload;
+    }
+
+    function requestJsonp(url, params) {
+      return new Promise((resolve, reject) => {
+        const callbackName = `__jsonp_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        const query = new URLSearchParams({
+          ...params,
+          callback: callbackName
+        });
+        const script = document.createElement("script");
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("JSONP 요청 시간이 초과되었습니다."));
+        }, 12000);
+
+        function cleanup() {
+          window.clearTimeout(timeout);
+          delete window[callbackName];
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
+        }
+
+        window[callbackName] = (payload) => {
+          cleanup();
+          resolve(payload);
+        };
+
+        script.onerror = () => {
+          cleanup();
+          reject(new Error("JSONP 스크립트를 불러오지 못했습니다."));
+        };
+        script.src = `${url}?${query.toString()}`;
+        document.head.appendChild(script);
+      });
+    }
+
+    function extractItems(payload) {
+      const candidates = [
+        payload?.response?.body?.items?.item,
+        payload?.response?.body?.items,
+        payload?.body?.items?.item,
+        payload?.body?.items,
+        payload?.items?.item,
+        payload?.items,
+        payload?.item
+      ];
+
+      for (const candidate of candidates) {
+        if (Array.isArray(candidate)) {
+          return candidate;
+        }
+        if (candidate && typeof candidate === "object") {
+          return [candidate];
+        }
+      }
+
+      return [];
+    }
+
+    function extractTotalCount(payload) {
+      const rawValue =
+        payload?.response?.body?.totalCount ??
+        payload?.body?.totalCount ??
+        payload?.totalCount ??
+        0;
+      const parsed = Number(rawValue);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function mergeBuildingItems(targetMap, items, endpointPath) {
+      for (const item of items) {
+        if (!item || typeof item !== "object") {
+          continue;
+        }
+
+        const normalizedItem = {
+          ...item,
+          __endpointPath: endpointPath
+        };
+        const key = getBuildingItemKey(normalizedItem);
+        const existing = targetMap.get(key);
+        if (!existing || scoreBuildingItem(normalizedItem) > scoreBuildingItem(existing)) {
+          targetMap.set(key, normalizedItem);
+        }
+      }
+    }
+
+    function getBuildingItemKey(item) {
+      const mgmKey = normalizeWhitespace(item.mgmBldrgstPk || "");
+      if (mgmKey) {
+        return `mgm:${mgmKey}`;
+      }
+
+      const address = normalizeWhitespace(item.platPlc || item.newPlatPlc || "");
+      const totalArea = parseOptionalNumber(item.totArea);
+      const buildingArea = parseOptionalNumber(item.archArea);
+      const approvalDate = digitsOnly(item.useAprDay);
+      return `addr:${address}|tot:${Number.isFinite(totalArea) ? totalArea : ""}|arch:${
+        Number.isFinite(buildingArea) ? buildingArea : ""
+      }|date:${approvalDate}`;
+    }
+
+    function scoreBuildingItem(item) {
+      let score = 0;
+
+      if (normalizeWhitespace(item.mgmBldrgstPk || "")) {
+        score += 8;
+      }
+      if (Number.isFinite(parseOptionalNumber(item.platArea)) && parseOptionalNumber(item.platArea) > 0) {
+        score += 4;
+      }
+      if (Number.isFinite(parseOptionalNumber(item.totArea)) && parseOptionalNumber(item.totArea) > 0) {
+        score += 4;
+      }
+      if (Number.isFinite(parseOptionalNumber(item.archArea)) && parseOptionalNumber(item.archArea) > 0) {
+        score += 4;
+      }
+      if (digitsOnly(item.useAprDay).length === 8) {
+        score += 4;
+      }
+      if (normalizeWhitespace(item.mainPurpsCdNm || item.etcPurps || "")) {
+        score += 2;
+      }
+      if (normalizeWhitespace(item.newPlatPlc || "")) {
+        score += 1;
+      }
+      if (/주건축물/.test(item.mainAtchGbCdNm || "")) {
+        score += 1;
+      }
+      if (item.__endpointPath === "getBrTitleInfo") {
+        score += 2;
+      }
+
+      return score;
+    }
+
+    function extractVworldPoint(payload) {
+      const possible = [
+        payload?.response?.result?.point,
+        payload?.response?.result?.items?.[0]?.point,
+        Array.isArray(payload?.response?.result) ? payload.response.result[0]?.point : null,
+        payload?.result?.point
+      ];
+
+      for (const point of possible) {
+        const x = Number(point?.x);
+        const y = Number(point?.y);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          return { x, y };
+        }
+      }
+
+      return null;
+    }
+
+    function createRegionResult(regionCode, source, raw) {
+      const digits = digitsOnly(regionCode);
+      if (digits.length < 10) {
+        throw new UserVisibleError("법정동 코드 응답을 해석하지 못했습니다.", { tone: "error" });
+      }
+
+      return {
+        sigunguCd: digits.slice(0, 5),
+        bjdongCd: digits.slice(5, 10),
+        raw,
+        source
+      };
+    }
+
+    function getRegionSourceLabel(source) {
+      if (source === "local") {
+        return "내장 법정동 코드";
+      }
+      if (source === "vworld") {
+        return "VWorld 보조 코드";
+      }
+      return "법정동 코드";
+    }
+
+    function lookupLegalRegionFromLocalData(input) {
+      const normalizedSido = normalizeSido(input.sido);
+      const normalizedSigungu = normalizeWhitespace(input.sigungu);
+      const normalizedLegalDong = normalizeWhitespace(input.legalDong);
+
+      if (!normalizedSido || !normalizedSigungu || !normalizedLegalDong) {
+        return null;
+      }
+
+      const sido = getLegalRegionSidos().find((item) => item.name === normalizedSido);
+      const sigungu = Array.isArray(sido?.sigungus)
+        ? sido.sigungus.find((item) => item.name === normalizedSigungu)
+        : null;
+      const legalDong = Array.isArray(sigungu?.legalDongs)
+        ? sigungu.legalDongs.find((item) => item.name === normalizedLegalDong)
+        : null;
+
+      if (!legalDong?.regionCode) {
+        return null;
+      }
+
+      return createRegionResult(legalDong.regionCode, "local", legalDong);
+    }
+
+    function isRegionLookupServiceFailure(error) {
+      const message = typeof error?.message === "string" ? error.message : "";
+      return /ERROR-5|서비스 연결실패|API 오류|JSON 응답/i.test(message);
+    }
+
+    function pickBestRegion(items, query) {
+      const normalizedQuery = normalizeWhitespace(query).replace(/\s+/g, "");
+      return [...items].sort((left, right) => regionScore(right, normalizedQuery) - regionScore(left, normalizedQuery))[0];
+    }
+
+    function regionScore(item, normalizedQuery) {
+      const raw = normalizeWhitespace(
+        item.locatadd_nm ||
+        item.locataddNm ||
+        item.region_nm ||
+        item.regionNm ||
+        ""
+      ).replace(/\s+/g, "");
+
+      if (!raw) {
+        return 0;
+      }
+      if (raw === normalizedQuery) {
+        return 3;
+      }
+      if (raw.includes(normalizedQuery)) {
+        return 2;
+      }
+      if (normalizedQuery.includes(raw)) {
+        return 1;
+      }
+      return 0;
+    }
+
+    function normalizeSido(value) {
+      const trimmed = normalizeWhitespace(value);
+      return SIDO_MAP[trimmed] || trimmed;
+    }
+
+    function normalizeWhitespace(value) {
+      return String(value || "").replace(/\s+/g, " ").trim();
+    }
+
+    function buildAddressCandidates(addressInput) {
+      const values = Array.isArray(addressInput) ? addressInput : [addressInput];
+      const expanded = [];
+      for (const value of values) {
+        const normalized = normalizeWhitespace(value);
+        if (!normalized) {
+          continue;
+        }
+        expanded.push(normalized);
+        const parcelNormalized = normalizeParcelAddress(normalized);
+        if (parcelNormalized && parcelNormalized !== normalized) {
+          expanded.push(parcelNormalized);
+        }
+      }
+      return [...new Set(expanded)];
+    }
+
+    function normalizeParcelAddress(address) {
+      return normalizeWhitespace(String(address || "").replace(/번지\b/g, ""));
+    }
+
+    function parseOptionalNumber(value) {
+      if (value === null || value === undefined || value === "") {
+        return Number.NaN;
+      }
+      const parsed = Number(String(value).replace(/,/g, ""));
+      return Number.isFinite(parsed) ? parsed : Number.NaN;
+    }
+
+    function normalizeDateValue(value) {
+      const digits = digitsOnly(value);
+      return digits.length === 8 ? digits : "";
+    }
+
+    function normalizeCode(value) {
+      return digitsOnly(value).slice(0, 5);
+    }
+
+    function digitsOnly(value) {
+      return String(value || "").replace(/\D/g, "");
+    }
+
+    function nearlyEqual(left, right, tolerance) {
+      return Number.isFinite(left) && Number.isFinite(right) && Math.abs(left - right) <= tolerance;
+    }
+
+    function formatArea(value) {
+      if (!Number.isFinite(value)) {
+        return "-";
+      }
+      return Number(value).toFixed(2).replace(/\.00$/, "");
+    }
+
+    function formatDateLabel(value) {
+      const digits = digitsOnly(value);
+      if (digits.length !== 8) {
+        return "";
+      }
+      return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+    }
+
+    function ensureResultCache() {
+      if (!(state.resultCache instanceof Map)) {
+        state.resultCache = new Map();
+      }
+      return state.resultCache;
+    }
+
+    function hydrateResults(nextResults, previousResults = []) {
+      const previousMap = new Map(previousResults.map((result) => [result.id, result]));
+      const cache = ensureResultCache();
+      return nextResults.map((result) => {
+        const previous = previousMap.get(result.id);
+        const cached = cache.get(result.id);
+        return {
+          ...result,
+          point: cached?.point || previous?.point || result.point || null,
+          pointType: cached?.pointType || previous?.pointType || result.pointType || null
+        };
+      });
+    }
+
+    function cacheResultState(result) {
+      if (!result?.id) {
+        return;
+      }
+
+      ensureResultCache().set(result.id, {
+        point: result.point || null,
+        pointType: result.pointType || null
+      });
+    }
+
+    function sameResultOrder(nextResults, previousResults) {
+      if (nextResults.length !== previousResults.length) {
+        return false;
+      }
+
+      return nextResults.every((result, index) => result.id === previousResults[index]?.id);
+    }
+
+    async function handleSearch(event) {
+      event.preventDefault();
+      if (state.isSearching) {
+        return;
+      }
+
+      clearWarnings();
+      closePopup();
+      clearMarker();
+
+      try {
+        const input = readFormValues();
+        validateInput(input);
+
+        state.isSearching = true;
+        setButtonLoading(true);
+        state.results = [];
+        state.selectedResultId = null;
+        state.resultCache = new Map();
+        renderResults([], { preserveSelection: false });
+        updateStatus("\ubc95\uc815\ub3d9 \ucf54\ub4dc \uc870\ud68c \uc911\uc785\ub2c8\ub2e4.", "loading", "Step 1 / 4");
+        setMapSummary(
+          "\uc870\ud68c \uc900\ube44 \uc911",
+          "\ubc95\uc815\ub3d9 \ucf54\ub4dc \uc870\ud68c\uc640 \uac74\ucd95\ubb3c\ub300\uc7a5 \ud398\uc774\uc9c0 \ud655\uc778\uc744 \uba3c\uc800 \uc9c4\ud589\ud569\ub2c8\ub2e4."
+        );
+
+        const legalRegion = await lookupLegalRegion(input);
+        updateStatus(
+          `${getRegionSourceLabel(legalRegion.source)} \ud655\uc778 \uc644\ub8cc: ${legalRegion.sigunguCd}-${legalRegion.bjdongCd}`,
+          "loading",
+          "Step 2 / 4"
+        );
+
+        let previewPinned = false;
+        const pageResult = await fetchBuildingCandidates(legalRegion, input, {
+          onMatchesUpdate({ filtered, processedPages, totalPages }) {
+            if (!filtered.length) {
+              return;
+            }
+
+            const hydrated = hydrateResults(filtered, state.results);
+            if (sameResultOrder(hydrated, state.results) && previewPinned) {
+              return;
+            }
+
+            state.results = hydrated;
+            renderResults(hydrated, { preserveSelection: true });
+
+            if (!previewPinned) {
+              previewPinned = true;
+              updateStatus(
+                `\uc624\ucc28\ubc94\uc704 \uc548\uc758 \ud6c4\ubcf4 ${hydrated.length}\uac74\uc744 \uba3c\uc800 \ucc3e\uc558\uc2b5\ub2c8\ub2e4. \uccab \ud6c4\ubcf4\ub97c \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud558\uace0 \ub098\uba38\uc9c0 \ud544\uc9c0\ub97c \uacc4\uc18d \uc870\ud68c\ud569\ub2c8\ub2e4.`,
+                "loading",
+                `Step 3 / 4 · ${processedPages}/${Math.max(totalPages, processedPages)}`
+              );
+              setMapSummary(
+                hydrated[0].address || "\ud6c4\ubcf4 \ubc1c\uacac",
+                "\uc870\uac74\uc5d0 \ub9de\ub294 \ud544\uc9c0\ub97c \uba3c\uc800 \ud45c\uc2dc\ud588\uc2b5\ub2c8\ub2e4. \ub098\uba38\uc9c0 \ud544\uc9c0 \uc870\ud68c\ub97c \uacc4\uc18d \uc9c4\ud589\ud569\ub2c8\ub2e4."
+              );
+              void selectResult(hydrated[0].id, { silentStatus: true });
+              return;
+            }
+
+            updateStatus(
+              `\ud604\uc7ac\uae4c\uc9c0 ${hydrated.length}\uac74 \ud6c4\ubcf4\ub97c \ucc3e\uc558\uc2b5\ub2c8\ub2e4. \ub098\uba38\uc9c0 \ud544\uc9c0\ub97c \uacc4\uc18d \uc870\ud68c\ud569\ub2c8\ub2e4.`,
+              "loading",
+              `Step 3 / 4 · ${processedPages}/${Math.max(totalPages, processedPages)}`
+            );
+          }
+        });
+
+        const filtered = hydrateResults(filterCandidates(pageResult.rawItems, input), state.results);
+        state.results = filtered;
+        renderResults(filtered, { preserveSelection: true });
+
+        if (!filtered.length) {
+          updateStatus("\uc870\uac74\uc5d0 \ub9de\ub294 \uac74\ucd95\ubb3c \ud6c4\ubcf4\uac00 \uc5c6\uc2b5\ub2c8\ub2e4.", "warning", "\uc644\ub8cc");
+          setMapSummary(
+            "\ud6c4\ubcf4 \uc5c6\uc74c",
+            "\uc785\ub825\ud55c \uc624\ucc28 \ud5c8\uc6a9 \ubc94\uc704 \uc548\uc5d0\uc11c \uc77c\uce58\ud558\ub294 \uac74\ucd95\ubb3c\ub300\uc7a5 \ud544\uc9c0\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc870\uac74\uc744 \uc870\uae08 \ub113\ud600 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694."
+          );
+          return;
+        }
+
+        updateStatus(
+          `${filtered.length}\uac74\uc758 \ud6c4\ubcf4\ub97c \ucc3e\uc558\uc2b5\ub2c8\ub2e4.${filtered.length === 1 ? " \uc790\ub3d9\uc73c\ub85c \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud569\ub2c8\ub2e4." : previewPinned ? " \uccab \uacb0\uacfc\ub294 \uc774\ubbf8 \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud558\uace0, \uc0c1\uc138 \ubaa9\ub85d\uc740 \uacb0\uacfc \uce74\ub4dc\uc5d0\uc11c \ud655\uc778\ud558\uc138\uc694." : " \ubaa9\ub85d\uc5d0\uc11c \uc120\ud0dd\ud574 \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud558\uc138\uc694."}`,
+          filtered.length === 1 ? "success" : "warning",
+          "Step 4 / 4"
+        );
+
+        if (filtered.length === 1) {
+          await selectResult(filtered[0].id, { silentStatus: true });
+          updateStatus("\ub2e8\uc77c \ud6c4\ubcf4\ub97c \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud588\uc2b5\ub2c8\ub2e4.", "success", "\uc644\ub8cc");
+        } else if (!previewPinned) {
+          setMapSummary(
+            `${filtered.length}\uac1c \ud6c4\ubcf4 \ub300\uae30 \uc911`,
+            "\uacb0\uacfc \ubaa9\ub85d \uce74\ub4dc\ub97c \ud074\ub9ad\ud558\uba74 \uc88c\ud45c\ub97c \uc870\ud68c\ud558\uace0 \uc9c0\ub3c4 \ub9c8\ucee4\uc640 \uc815\ubcf4\ucc3d\uc744 \uc5fd\ub2c8\ub2e4."
+          );
+        }
+      } catch (error) {
+        console.error(error);
+        handleSearchError(error);
+      } finally {
+        state.isSearching = false;
+        setButtonLoading(false);
+      }
+    }
+
+    async function fetchBuildingCandidates(region, input, options = {}) {
+      const mergedItems = new Map();
+      let totalCount = 0;
+      let totalPages = 0;
+      let processedPages = 0;
+      let successfulEndpoints = 0;
+      let lastError = null;
+
+      for (const endpoint of BUILDING_ENDPOINTS) {
+        let endpointTotalPages = 1;
+
+        try {
+          const firstPage = await fetchBuildingPage(endpoint.path, region.sigunguCd, region.bjdongCd, 1);
+          const firstItems = extractItems(firstPage);
+          const endpointTotalCount = extractTotalCount(firstPage);
+          endpointTotalPages = Math.max(1, Math.ceil(endpointTotalCount / PAGE_SIZE));
+
+          mergeBuildingItems(mergedItems, firstItems, endpoint.path);
+          totalCount += endpointTotalCount;
+          totalPages += endpointTotalPages;
+          processedPages += 1;
+          successfulEndpoints += 1;
+          publishPartialMatches();
+
+          for (let page = 2; page <= endpointTotalPages; page += 1) {
+            updateStatus(
+              `${endpoint.label} ${page} / ${endpointTotalPages} \ud398\uc774\uc9c0\ub97c \uc870\ud68c \uc911\uc785\ub2c8\ub2e4.`,
+              "loading",
+              `${endpoint.label} \ud398\uc774\uc9c0 \uc218\uc9d1 ${page}/${endpointTotalPages}`
+            );
+
+            try {
+              const payload = await fetchBuildingPage(endpoint.path, region.sigunguCd, region.bjdongCd, page);
+              mergeBuildingItems(mergedItems, extractItems(payload), endpoint.path);
+              processedPages += 1;
+              publishPartialMatches();
+            } catch (error) {
+              console.error(error);
+              addWarning(`${endpoint.label} ${page}\ud398\uc774\uc9c0 \uc870\ud68c\uc5d0 \uc2e4\ud328\ud574 \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4.`);
+            }
+          }
+        } catch (error) {
+          console.error(error);
+          lastError = error;
+          addWarning(`\uac74\ucd95\ubb3c\ub300\uc7a5 ${endpoint.label} \uc870\ud68c\uc5d0 \uc2e4\ud328\ud574 \ub2e4\ub978 \uc18c\uc2a4\ub85c \uacc4\uc18d \uc2dc\ub3c4\ud569\ub2c8\ub2e4.`);
+        }
+      }
+
+      if (!successfulEndpoints) {
+        throw lastError || new UserVisibleError("\uac74\ucd95\ubb3c\ub300\uc7a5 \uc870\ud68c\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.", { tone: "error" });
+      }
+
+      return {
+        rawItems: Array.from(mergedItems.values()),
+        totalCount,
+        totalPages
+      };
+
+      function publishPartialMatches() {
+        if (typeof options.onMatchesUpdate !== "function") {
+          return;
+        }
+
+        const rawItems = Array.from(mergedItems.values());
+        const filtered = filterCandidates(rawItems, input);
+        options.onMatchesUpdate({
+          filtered,
+          rawCount: rawItems.length,
+          processedPages,
+          totalPages
+        });
+      }
+    }
+
+    function renderResults(results, options = {}) {
+      elements.resultsList.innerHTML = "";
+      const preserveSelection = options.preserveSelection !== false;
+      const selectedResultId = preserveSelection ? state.selectedResultId : null;
+
+      if (!results.length) {
+        state.selectedResultId = null;
+        elements.resultsCount.textContent = "\ud6c4\ubcf4 \uc5c6\uc74c";
+        elements.resultsSummary.innerHTML = "<span>\ud544\ud130 \uc870\uac74\uc5d0 \ub9de\ub294 \uacb0\uacfc\uac00 \uc5ec\uae30\uc5d0 \ud45c\uc2dc\ub429\ub2c8\ub2e4.</span>";
+        elements.resultsList.innerHTML = `
+          <div class="empty-state">
+            \uc870\uac74\uc5d0 \ub9de\ub294 \ud6c4\ubcf4\uac00 \uc544\uc9c1 \uc5c6\uc2b5\ub2c8\ub2e4.<br>
+            \uc870\ud68c \uc911 \uc624\ucc28\ubc94\uc704 \uc548\uc758 \ud6c4\ubcf4\uac00 \ub098\uc624\uba74 \uc5ec\uae30\uc5d0 \uc21c\ucc28\uc801\uc73c\ub85c \ud45c\uc2dc\ub429\ub2c8\ub2e4.
+          </div>
+        `;
+        return;
+      }
+
+      elements.resultsCount.textContent = `${results.length}\uac74`;
+      elements.resultsSummary.innerHTML = `
+        <span>${results.length === 1 ? "\ub2e8\uc77c \ud6c4\ubcf4" : "\ubcf5\uc218 \ud6c4\ubcf4"}\uac00 \ud544\ud130\ub9c1\ub418\uc5c8\uc2b5\ub2c8\ub2e4.</span>
+      `;
+
+      const fragment = document.createDocumentFragment();
+      results.forEach((result, index) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "result-card";
+        card.dataset.resultId = result.id;
+        card.innerHTML = `
+          <div class="result-card__head">
+            <h3 class="result-card__title">${escapeHtml(result.address || "\uc8fc\uc18c \uc5c6\uc74c")}</h3>
+            <span class="result-card__badge">\ud6c4\ubcf4 ${index + 1}</span>
+          </div>
+          <div class="result-card__sub">
+            ${result.mainPurpose ? `<span class="chip">\uc8fc\uc6a9\ub3c4 ${escapeHtml(result.mainPurpose)}</span>` : ""}
+            ${result.buildingName ? `<span class="chip">\uac74\ubb3c\uba85 ${escapeHtml(result.buildingName)}</span>` : ""}
+            ${Number.isFinite(result.landArea) ? `<span class="chip">\ub300\uc9c0 ${formatArea(result.landArea)}㎡</span>` : ""}
+            ${Number.isFinite(result.totalArea) ? `<span class="chip">\uc5f0\uba74\uc801 ${formatArea(result.totalArea)}㎡</span>` : ""}
+            ${Number.isFinite(result.buildingArea) ? `<span class="chip">\uac74\ucd95 ${formatArea(result.buildingArea)}㎡</span>` : ""}
+            ${result.approvalDateLabel ? `<span class="chip">\uc900\uacf5 ${escapeHtml(result.approvalDateLabel)}</span>` : ""}
+          </div>
+        `;
+
+        card.addEventListener("click", () => {
+          selectResult(result.id).catch((error) => {
+            console.error(error);
+            handleSearchError(error);
+          });
+        });
+
+        fragment.appendChild(card);
+      });
+
+      elements.resultsList.appendChild(fragment);
+
+      if (selectedResultId && results.some((result) => result.id === selectedResultId)) {
+        setSelectedResult(selectedResultId);
+      } else {
+        state.selectedResultId = null;
+      }
+    }
+
+    async function selectResult(resultId, options = {}) {
+      const matched = state.results.find((item) => item.id === resultId);
+      if (!matched) {
+        return;
+      }
+
+      setSelectedResult(resultId);
+
+      if (!options.silentStatus) {
+        updateStatus("\uc120\ud0dd\ud55c \ud6c4\ubcf4\uc758 \uc88c\ud45c\ub97c \uc870\ud68c \uc911\uc785\ub2c8\ub2e4.", "loading", "\uc9c0\ub3c4 \ud45c\uc2dc");
+      }
+
+      if (!matched.point) {
+        matched.point = await geocodeAddress([
+          matched.address,
+          normalizeParcelAddress(matched.address),
+          matched.raw?.newPlatPlc
+        ]);
+      }
+
+      cacheResultState(matched);
+
+      if (!matched.point) {
+        clearMarker();
+        setMapSummary(
+          "\uc88c\ud45c \ubcc0\ud658 \uc2e4\ud328",
+          "\uc9c0\ubc88\uc8fc\uc18c \ud14d\uc2a4\ud2b8\ub294 \ud655\uc778\ud588\uc9c0\ub9cc VWorld \uc88c\ud45c \ubcc0\ud658\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4. \uacb0\uacfc \uce74\ub4dc\uc758 \uc0c1\uc138 \uc815\ubcf4\ub9cc \uc720\uc9c0\ud569\ub2c8\ub2e4."
+        );
+
+        if (!options.silentStatus) {
+          updateStatus("\uc88c\ud45c \ubcc0\ud658\uc5d0 \uc2e4\ud328\ud574 \uc9c0\ub3c4 \ub9c8\ucee4 \uc5c6\uc774 \uacb0\uacfc\ub9cc \uc720\uc9c0\ud569\ub2c8\ub2e4.", "warning", "\uc644\ub8cc");
+        }
+        return;
+      }
+
+      placeMarker(matched);
+      openPopup(matched);
+      setMapSummary(
+        matched.address,
+        matched.mainPurpose || matched.buildingName
+          ? `${matched.mainPurpose || "\uc8fc\uc6a9\ub3c4 \ubbf8\uc0c1"}${matched.buildingName ? ` · ${matched.buildingName}` : ""}`
+          : "\uc120\ud0dd\ud55c \ud6c4\ubcf4\ub97c \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud588\uc2b5\ub2c8\ub2e4."
+      );
+
+      if (!options.silentStatus) {
+        updateStatus("\uc120\ud0dd\ud55c \ud6c4\ubcf4\ub97c \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud588\uc2b5\ub2c8\ub2e4.", "success", "\uc644\ub8cc");
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+  </script>
+</body>
+</html>
