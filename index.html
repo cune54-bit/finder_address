@@ -726,6 +726,7 @@
     @media (max-width: 1080px) {
       .app-shell {
         grid-template-columns: 1fr;
+        min-height: auto;
       }
 
       .sidebar {
@@ -733,6 +734,7 @@
         min-height: auto;
         border-right: 0;
         border-bottom: 1px solid var(--line);
+        box-shadow: none;
       }
 
       .sidebar::after {
@@ -742,12 +744,17 @@
       .map-shell,
       #map {
         position: relative;
-        min-height: 58vh;
-        height: 58vh;
+        top: auto;
+        min-height: clamp(340px, 52dvh, 500px);
+        height: clamp(340px, 52dvh, 500px);
       }
 
       .results-list {
         max-height: 28vh;
+      }
+
+      .map-shell {
+        border-top: 1px solid var(--line);
       }
 
       .map-summary {
@@ -757,11 +764,21 @@
 
     @media (max-width: 640px) {
       .sidebar {
-        padding: 18px 16px 16px;
+        gap: 10px;
+        padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+      }
+
+      .form-card,
+      .status-card,
+      .results-card {
+        gap: 8px;
+        padding: 12px;
+        border-radius: 16px;
       }
 
       .field-grid {
         grid-template-columns: 1fr;
+        gap: 8px;
       }
 
       .field--third,
@@ -770,21 +787,209 @@
         grid-column: auto;
       }
 
+      .field {
+        gap: 5px;
+      }
+
+      .field label {
+        font-size: 10px;
+      }
+
+      .field input,
+      .field select {
+        height: 40px;
+        padding: 0 11px;
+        font-size: 13px;
+        border-radius: 11px;
+      }
+
+      .actions {
+        width: 100%;
+      }
+
+      .button {
+        width: 100%;
+        min-width: 0;
+        height: 46px;
+        font-size: 15px;
+      }
+
+      .section-title {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+      }
+
+      .section-title h2 {
+        font-size: 14px;
+      }
+
+      .section-caption,
+      .status-meta {
+        font-size: 10px;
+      }
+
       .sidebar-title {
-        font-size: 24px;
+        font-size: 22px;
+      }
+
+      .status-row {
+        align-items: flex-start;
+      }
+
+      .status-text,
+      .results-summary,
+      .empty-state {
+        font-size: 12px;
+      }
+
+      .results-summary {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+
+      .result-card {
+        gap: 7px;
+        padding: 11px;
+        border-radius: 14px;
+      }
+
+      .result-card__head {
+        gap: 8px;
+      }
+
+      .result-card__title {
+        font-size: 13px;
+      }
+
+      .result-card__badge {
+        padding: 4px 7px;
+        font-size: 9px;
+      }
+
+      .result-card__sub {
+        gap: 5px;
+        font-size: 10px;
+      }
+
+      .chip {
+        padding: 4px 7px;
+      }
+
+      .map-shell,
+      #map {
+        min-height: clamp(300px, 44dvh, 380px);
+        height: clamp(300px, 44dvh, 380px);
       }
 
       .map-header {
-        top: 14px;
-        left: 14px;
-        right: 14px;
+        top: 10px;
+        left: 10px;
+        right: 10px;
         flex-direction: column;
+        gap: 10px;
+      }
+
+      .map-badge {
+        display: none;
+      }
+
+      .map-summary {
+        padding: 10px 12px;
+        border-radius: 14px;
+      }
+
+      .map-summary h2 {
+        margin-bottom: 4px;
+        font-size: 14px;
+      }
+
+      .map-summary p {
+        font-size: 11px;
+        line-height: 1.45;
       }
 
       .map-badge,
       .map-summary,
       .map-fallback {
         max-width: none;
+      }
+
+      .map-fallback {
+        inset: auto 10px 10px 10px;
+        padding: 12px 13px;
+        font-size: 12px;
+        line-height: 1.48;
+      }
+
+      .leaflet-control-zoom {
+        transform: scale(0.92);
+        transform-origin: top left;
+      }
+
+      .leaflet-popup-content {
+        min-width: 0;
+        width: min(250px, calc(100vw - 56px));
+      }
+
+      .map-popup {
+        padding: 12px 14px;
+      }
+
+      .map-popup__title {
+        margin-bottom: 8px;
+        font-size: 14px;
+      }
+
+      .map-popup__details {
+        gap: 6px;
+        font-size: 12px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .sidebar {
+        padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+      }
+
+      .sidebar-title {
+        font-size: 20px;
+      }
+
+      .form-card,
+      .status-card,
+      .results-card {
+        padding: 10px;
+      }
+
+      .field input,
+      .field select {
+        height: 38px;
+        font-size: 12px;
+      }
+
+      .button {
+        height: 44px;
+        font-size: 14px;
+      }
+
+      .map-shell,
+      #map {
+        min-height: clamp(280px, 42dvh, 340px);
+        height: clamp(280px, 42dvh, 340px);
+      }
+
+      .map-summary {
+        padding: 9px 11px;
+      }
+
+      .map-summary h2 {
+        font-size: 13px;
+      }
+
+      .map-summary p {
+        font-size: 10px;
       }
     }
 
@@ -1040,6 +1245,7 @@
       resultsCount: document.getElementById("resultsCount"),
       resultsSummary: document.getElementById("resultsSummary"),
       resultsList: document.getElementById("resultsList"),
+      mapShell: document.querySelector(".map-shell"),
       mapSummary: document.getElementById("mapSummary"),
       mapFallback: document.getElementById("mapFallback"),
       popup: document.getElementById("popup"),
@@ -1606,6 +1812,8 @@
       }
 
       placeMarker(matched);
+      revealMapShell();
+      centerMapOnResult(matched, { animate: true });
       openPopup(matched);
       setMapSummary(
         matched.address,
@@ -1676,10 +1884,9 @@
       }).addTo(state.map);
       state.marker.on("click", () => {
         setSelectedResult(result.id);
+        centerMapOnResult(result, { animate: true });
         openPopup(result);
       });
-
-      state.map.setView([result.point.y, result.point.x], 17);
     }
 
     function clearMarker() {
@@ -1697,9 +1904,45 @@
       state.marker.bindPopup(buildPopupHtml(result), {
         maxWidth: 320,
         closeButton: true,
-        autoPan: true,
+        autoPan: false,
         className: "land-result-popup"
       }).openPopup();
+    }
+
+    function centerMapOnResult(result, options = {}) {
+      if (!state.map || !result?.point) {
+        return;
+      }
+
+      const targetZoom = Math.max(state.map.getZoom() || 0, options.zoom || 17);
+      const targetPoint = [result.point.y, result.point.x];
+      state.map.setView(targetPoint, targetZoom, {
+        animate: options.animate === true
+      });
+    }
+
+    function revealMapShell() {
+      if (!elements.mapShell) {
+        return;
+      }
+
+      const rect = elements.mapShell.getBoundingClientRect();
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+      const verticallyVisible = rect.top < viewportHeight * 0.78 && rect.bottom > viewportHeight * 0.22;
+      const horizontallyVisible = rect.left < viewportWidth && rect.right > 0;
+
+      if (verticallyVisible && horizontallyVisible) {
+        return;
+      }
+
+      const absoluteTop = rect.top + window.scrollY;
+      const centeredTop = absoluteTop - Math.max((viewportHeight - Math.min(rect.height, viewportHeight)) / 2, 0);
+
+      window.scrollTo({
+        top: Math.max(0, centeredTop),
+        behavior: "smooth"
+      });
     }
 
     function closePopup() {
@@ -2138,6 +2381,143 @@
       return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
     }
 
+    function buildDisplayResults(items, input, limit = 4) {
+      return rankCandidates(items, input)
+        .slice(0, limit)
+        .map((candidate, index) => ({
+          ...candidate,
+          displayRank: index + 1,
+          displayLabel: index === 0 ? "가장 유사" : `유사 ${index + 1}`
+        }));
+    }
+
+    function rankCandidates(items, input) {
+      return items
+        .map((item, index) => scoreCandidate(mapCandidate(item, index), input, index))
+        .sort(compareCandidateSimilarity);
+    }
+
+    function scoreCandidate(candidate, input, orderIndex) {
+      const checks = [];
+      const normalizedPurpose = normalizeWhitespace(input.mainPurpose).toLowerCase();
+
+      if (Number.isFinite(input.landArea)) {
+        const diff = Number.isFinite(candidate.landArea) ? Math.abs(input.landArea - candidate.landArea) : Number.POSITIVE_INFINITY;
+        checks.push({
+          exact: Number.isFinite(candidate.landArea) && diff <= 1,
+          similarity: scoreNumericSimilarity(input.landArea, candidate.landArea, Math.max(5, Math.abs(input.landArea) * 0.05)),
+          weight: 3
+        });
+      }
+
+      if (Number.isFinite(input.totalArea)) {
+        const diff = Number.isFinite(candidate.totalArea) ? Math.abs(input.totalArea - candidate.totalArea) : Number.POSITIVE_INFINITY;
+        checks.push({
+          exact: Number.isFinite(candidate.totalArea) && diff <= 0.01,
+          similarity: scoreNumericSimilarity(input.totalArea, candidate.totalArea, Math.max(3, Math.abs(input.totalArea) * 0.03)),
+          weight: 3
+        });
+      }
+
+      if (Number.isFinite(input.buildingArea)) {
+        const diff = Number.isFinite(candidate.buildingArea)
+          ? Math.abs(input.buildingArea - candidate.buildingArea)
+          : Number.POSITIVE_INFINITY;
+        checks.push({
+          exact: Number.isFinite(candidate.buildingArea) && diff <= 0.01,
+          similarity: scoreNumericSimilarity(
+            input.buildingArea,
+            candidate.buildingArea,
+            Math.max(2, Math.abs(input.buildingArea) * 0.03)
+          ),
+          weight: 2
+        });
+      }
+
+      if (input.approvalDate) {
+        checks.push({
+          exact: candidate.approvalDate === input.approvalDate,
+          similarity: scoreDateSimilarity(input.approvalDate, candidate.approvalDate),
+          weight: 2
+        });
+      }
+
+      if (normalizedPurpose) {
+        const candidatePurpose = normalizeWhitespace(candidate.mainPurpose).toLowerCase();
+        const exact = Boolean(candidatePurpose) && candidatePurpose.includes(normalizedPurpose);
+        checks.push({
+          exact,
+          similarity: exact ? 1 : 0,
+          weight: 2
+        });
+      }
+
+      const comparedCriteriaCount = checks.length;
+      const matchedCriteriaCount = checks.filter((check) => check.exact).length;
+      const totalWeight = checks.reduce((sum, check) => sum + check.weight, 0);
+      const similarityScore = totalWeight
+        ? checks.reduce((sum, check) => sum + check.similarity * check.weight, 0) / totalWeight
+        : 0;
+
+      return {
+        ...candidate,
+        exactMatch: comparedCriteriaCount === 0 ? true : checks.every((check) => check.exact),
+        matchedCriteriaCount,
+        comparedCriteriaCount,
+        similarityScore,
+        orderIndex
+      };
+    }
+
+    function scoreNumericSimilarity(inputValue, candidateValue, softScale) {
+      if (!Number.isFinite(inputValue) || !Number.isFinite(candidateValue)) {
+        return 0;
+      }
+
+      const scale = Math.max(softScale || 1, 0.01);
+      const diff = Math.abs(inputValue - candidateValue);
+      return 1 / (1 + diff / scale);
+    }
+
+    function scoreDateSimilarity(inputValue, candidateValue) {
+      const inputDigits = digitsOnly(inputValue);
+      const candidateDigits = digitsOnly(candidateValue);
+
+      if (inputDigits.length !== 8 || candidateDigits.length !== 8) {
+        return 0;
+      }
+
+      if (inputDigits === candidateDigits) {
+        return 1;
+      }
+
+      const inputDate = new Date(`${inputDigits.slice(0, 4)}-${inputDigits.slice(4, 6)}-${inputDigits.slice(6, 8)}`);
+      const candidateDateObject = new Date(
+        `${candidateDigits.slice(0, 4)}-${candidateDigits.slice(4, 6)}-${candidateDigits.slice(6, 8)}`
+      );
+
+      if (Number.isNaN(inputDate.getTime()) || Number.isNaN(candidateDateObject.getTime())) {
+        return 0;
+      }
+
+      const diffDays = Math.abs(inputDate.getTime() - candidateDateObject.getTime()) / (1000 * 60 * 60 * 24);
+      return 1 / (1 + diffDays / 365);
+    }
+
+    function compareCandidateSimilarity(left, right) {
+      return (
+        Number(right.exactMatch) - Number(left.exactMatch) ||
+        right.matchedCriteriaCount - left.matchedCriteriaCount ||
+        right.similarityScore - left.similarityScore ||
+        left.orderIndex - right.orderIndex
+      );
+    }
+
+    function formatSimilarityScore(value) {
+      const normalized = Math.max(0, Math.min(1, Number(value) || 0));
+      return `${Math.round(normalized * 100)}점`;
+    }
+
     function ensureResultCache() {
       if (!(state.resultCache instanceof Map)) {
         state.resultCache = new Map();
@@ -2213,12 +2593,12 @@
 
         let previewPinned = false;
         const pageResult = await fetchBuildingCandidates(legalRegion, input, {
-          onMatchesUpdate({ filtered, processedPages, totalPages }) {
+          onMatchesUpdate({ filtered, rawItems, processedPages, totalPages }) {
             if (!filtered.length) {
               return;
             }
 
-            const hydrated = hydrateResults(filtered, state.results);
+            const hydrated = hydrateResults(buildDisplayResults(rawItems, input), state.results);
             if (sameResultOrder(hydrated, state.results) && previewPinned) {
               return;
             }
@@ -2229,7 +2609,7 @@
             if (!previewPinned) {
               previewPinned = true;
               updateStatus(
-                `\uc624\ucc28\ubc94\uc704 \uc548\uc758 \ud6c4\ubcf4 ${hydrated.length}\uac74\uc744 \uba3c\uc800 \ucc3e\uc558\uc2b5\ub2c8\ub2e4. \uccab \ud6c4\ubcf4\ub97c \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud558\uace0 \ub098\uba38\uc9c0 \ud544\uc9c0\ub97c \uacc4\uc18d \uc870\ud68c\ud569\ub2c8\ub2e4.`,
+                "\uc624\ucc28\ubc94\uc704 \uc548\uc758 \ud6c4\ubcf4\ub97c \uba3c\uc800 \ucc3e\uc558\uc2b5\ub2c8\ub2e4. \uac00\uc7a5 \uc720\uc0ac\ud55c 1\uac74\uacfc \ucd94\uac00 \uc720\uc0ac \ud6c4\ubcf4\ub97c \uba3c\uc800 \ubcf4\uc5ec\uc8fc\uace0 \ub098\uba38\uc9c0 \ud544\uc9c0\ub97c \uacc4\uc18d \uc870\ud68c\ud569\ub2c8\ub2e4.",
                 "loading",
                 `Step 3 / 4 · ${processedPages}/${Math.max(totalPages, processedPages)}`
               );
@@ -2249,11 +2629,12 @@
           }
         });
 
-        const filtered = hydrateResults(filterCandidates(pageResult.rawItems, input), state.results);
-        state.results = filtered;
-        renderResults(filtered, { preserveSelection: true });
+        const exactMatches = filterCandidates(pageResult.rawItems, input);
+        const displayResults = hydrateResults(buildDisplayResults(pageResult.rawItems, input), state.results);
+        state.results = displayResults;
+        renderResults(displayResults, { preserveSelection: true });
 
-        if (!filtered.length) {
+        if (!displayResults.length) {
           updateStatus("\uc870\uac74\uc5d0 \ub9de\ub294 \uac74\ucd95\ubb3c \ud6c4\ubcf4\uac00 \uc5c6\uc2b5\ub2c8\ub2e4.", "warning", "\uc644\ub8cc");
           setMapSummary(
             "\ud6c4\ubcf4 \uc5c6\uc74c",
@@ -2262,18 +2643,35 @@
           return;
         }
 
+        if (!exactMatches.length) {
+          updateStatus(
+            "\uc624\ucc28\ubc94\uc704 \uc548\uc758 \ud6c4\ubcf4\ub294 \uc5c6\uc5b4 \uac00\uc7a5 \uc720\uc0ac\ud55c \ud544\uc9c0 1\uac1c\uc640 \ub2e4\uc74c \uc720\uc0ac \ud6c4\ubcf4 3\uac1c\ub97c \ud45c\uc2dc\ud588\uc2b5\ub2c8\ub2e4.",
+            "warning",
+            "\uc644\ub8cc"
+          );
+          setMapSummary(
+            `${displayResults.length}\uac1c \uc720\uc0ac \ud6c4\ubcf4`,
+            "\uacb0\uacfc \ubaa9\ub85d\uc5d0\uc11c \ud544\uc9c0\ub97c \uc120\ud0dd\ud558\uba74 \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud569\ub2c8\ub2e4."
+          );
+          return;
+        }
+
         updateStatus(
-          `${filtered.length}\uac74\uc758 \ud6c4\ubcf4\ub97c \ucc3e\uc558\uc2b5\ub2c8\ub2e4.${filtered.length === 1 ? " \uc790\ub3d9\uc73c\ub85c \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud569\ub2c8\ub2e4." : previewPinned ? " \uccab \uacb0\uacfc\ub294 \uc774\ubbf8 \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud558\uace0, \uc0c1\uc138 \ubaa9\ub85d\uc740 \uacb0\uacfc \uce74\ub4dc\uc5d0\uc11c \ud655\uc778\ud558\uc138\uc694." : " \ubaa9\ub85d\uc5d0\uc11c \uc120\ud0dd\ud574 \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud558\uc138\uc694."}`,
-          filtered.length === 1 ? "success" : "warning",
+          `\uc870\uac74 \uc77c\uce58 \ud6c4\ubcf4 ${exactMatches.length}\uac74\uc744 \ucc3e\uc558\uc2b5\ub2c8\ub2e4. \uacb0\uacfc \ubaa9\ub85d\uc5d0\ub294 \uac00\uc7a5 \uc720\uc0ac\ud55c \ud544\uc9c0 1\uac1c\uc640 \ub2e4\uc74c \uc720\uc0ac \ud6c4\ubcf4 ${Math.max(displayResults.length - 1, 0)}\uac1c\ub97c \ud45c\uc2dc\ud569\ub2c8\ub2e4.`,
+          exactMatches.length === 1 ? "success" : "warning",
           "Step 4 / 4"
         );
 
-        if (filtered.length === 1) {
-          await selectResult(filtered[0].id, { silentStatus: true });
-          updateStatus("\ub2e8\uc77c \ud6c4\ubcf4\ub97c \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud588\uc2b5\ub2c8\ub2e4.", "success", "\uc644\ub8cc");
+        if (displayResults[0]?.exactMatch) {
+          await selectResult(displayResults[0].id, { silentStatus: true });
+          updateStatus(
+            "\uac00\uc7a5 \uc720\uc0ac\ud55c \ud544\uc9c0 1\uac1c\ub97c \uc9c0\ub3c4\uc5d0 \ud45c\uc2dc\ud588\uace0, \ub2e4\uc74c \uc720\uc0ac \ud6c4\ubcf4 3\uac1c\ub97c \uacb0\uacfc \ubaa9\ub85d\uc5d0 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.",
+            "success",
+            "\uc644\ub8cc"
+          );
         } else if (!previewPinned) {
           setMapSummary(
-            `${filtered.length}\uac1c \ud6c4\ubcf4 \ub300\uae30 \uc911`,
+            `${displayResults.length}\uac1c \ud6c4\ubcf4 \ub300\uae30 \uc911`,
             "\uacb0\uacfc \ubaa9\ub85d \uce74\ub4dc\ub97c \ud074\ub9ad\ud558\uba74 \uc88c\ud45c\ub97c \uc870\ud68c\ud558\uace0 \uc9c0\ub3c4 \ub9c8\ucee4\uc640 \uc815\ubcf4\ucc3d\uc744 \uc5fd\ub2c8\ub2e4."
           );
         }
@@ -2353,6 +2751,7 @@
         const filtered = filterCandidates(rawItems, input);
         options.onMatchesUpdate({
           filtered,
+          rawItems,
           rawCount: rawItems.length,
           processedPages,
           totalPages
@@ -2368,19 +2767,20 @@
       if (!results.length) {
         state.selectedResultId = null;
         elements.resultsCount.textContent = "\ud6c4\ubcf4 \uc5c6\uc74c";
-        elements.resultsSummary.innerHTML = "<span>\ud544\ud130 \uc870\uac74\uc5d0 \ub9de\ub294 \uacb0\uacfc\uac00 \uc5ec\uae30\uc5d0 \ud45c\uc2dc\ub429\ub2c8\ub2e4.</span>";
+        elements.resultsSummary.innerHTML = "<span>\uc870\uac74 \uc77c\uce58 \ud6c4\ubcf4\ub098 \uc720\uc0ac \ud6c4\ubcf4\uac00 \uc5ec\uae30\uc5d0 \ud45c\uc2dc\ub429\ub2c8\ub2e4.</span>";
         elements.resultsList.innerHTML = `
           <div class="empty-state">
-            \uc870\uac74\uc5d0 \ub9de\ub294 \ud6c4\ubcf4\uac00 \uc544\uc9c1 \uc5c6\uc2b5\ub2c8\ub2e4.<br>
-            \uc870\ud68c \uc911 \uc624\ucc28\ubc94\uc704 \uc548\uc758 \ud6c4\ubcf4\uac00 \ub098\uc624\uba74 \uc5ec\uae30\uc5d0 \uc21c\ucc28\uc801\uc73c\ub85c \ud45c\uc2dc\ub429\ub2c8\ub2e4.
+            \uc870\uac74 \uc77c\uce58 \ud6c4\ubcf4\uac00 \uc5c6\ub354\ub77c\ub3c4<br>
+            \uac00\uc7a5 \uc720\uc0ac\ud55c \ud544\uc9c0 4\uac74\uc744 \uc5ec\uae30\uc5d0 \ud45c\uc2dc\ud569\ub2c8\ub2e4.
           </div>
         `;
         return;
       }
 
       elements.resultsCount.textContent = `${results.length}\uac74`;
+      const topResult = results[0];
       elements.resultsSummary.innerHTML = `
-        <span>${results.length === 1 ? "\ub2e8\uc77c \ud6c4\ubcf4" : "\ubcf5\uc218 \ud6c4\ubcf4"}\uac00 \ud544\ud130\ub9c1\ub418\uc5c8\uc2b5\ub2c8\ub2e4.</span>
+        <span>${topResult?.exactMatch ? `\uac00\uc7a5 \uc720\uc0ac\ud55c \ud544\uc9c0 1\uac1c\uc640 \ub2e4\uc74c \uc720\uc0ac \ud6c4\ubcf4 ${Math.max(results.length - 1, 0)}\uac1c\ub97c \ud45c\uc2dc\ud569\ub2c8\ub2e4.` : `\uc870\uac74 \uc77c\uce58 \ud6c4\ubcf4\uac00 \uc5c6\uc5b4 \uac00\uc7a5 \uc720\uc0ac\ud55c \uc0c1\uc704 ${results.length}\uac1c\ub97c \ud45c\uc2dc\ud569\ub2c8\ub2e4.`}</span>
       `;
 
       const fragment = document.createDocumentFragment();
@@ -2392,9 +2792,11 @@
         card.innerHTML = `
           <div class="result-card__head">
             <h3 class="result-card__title">${escapeHtml(result.address || "\uc8fc\uc18c \uc5c6\uc74c")}</h3>
-            <span class="result-card__badge">\ud6c4\ubcf4 ${index + 1}</span>
+            <span class="result-card__badge">${escapeHtml(result.displayLabel || `\ud6c4\ubcf4 ${index + 1}`)}</span>
           </div>
           <div class="result-card__sub">
+            <span class="chip">${result.exactMatch ? "\uc624\ucc28\ubc94\uc704 \uc77c\uce58" : `\uc720\uc0ac\ub3c4 ${formatSimilarityScore(result.similarityScore)}`}</span>
+            ${result.comparedCriteriaCount ? `<span class="chip">\uc77c\uce58 ${result.matchedCriteriaCount}/${result.comparedCriteriaCount}</span>` : ""}
             ${result.mainPurpose ? `<span class="chip">\uc8fc\uc6a9\ub3c4 ${escapeHtml(result.mainPurpose)}</span>` : ""}
             ${result.buildingName ? `<span class="chip">\uac74\ubb3c\uba85 ${escapeHtml(result.buildingName)}</span>` : ""}
             ${Number.isFinite(result.landArea) ? `<span class="chip">\ub300\uc9c0 ${formatArea(result.landArea)}㎡</span>` : ""}
@@ -2459,6 +2861,8 @@
       }
 
       placeMarker(matched);
+      revealMapShell();
+      centerMapOnResult(matched, { animate: true });
       openPopup(matched);
       setMapSummary(
         matched.address,
